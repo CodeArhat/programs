@@ -1,0 +1,15 @@
+# depslib dependency file v1.0
+1377786996 source:c:\wzprogram\wztxtsplitter\main.cpp
+	<cstdlib>
+	<iostream>
+	<fstream>
+	<sstream>
+	<iomanip>
+
+1377787184 source:c:\wzprogram\wztxtsplitter\wztxtsplitter.cpp
+	<cstdlib>
+	<iostream>
+	<fstream>
+	<sstream>
+	<iomanip>
+
