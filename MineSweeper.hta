@@ -1,0 +1,449 @@
+<!-----------------------------------------------------------------------------
+    Name:       Mine Sweeper
+    Requires:   WinXP SP2, IE6, 800x600 or higher resolution
+    Author:     WangZheng
+    History:    2005-11-04 20:07 Create
+------------------------------------------------------------------------------>
+<html>
+<head>
+    <title>Mine Sweeper</title>
+    <STYLE TYPE="text/css">
+        .btnCell    { height: 100%; width: 100%; }
+    </STYLE>
+</head>
+<script language="JavaScript">
+
+var CX = 23; // Cell Width
+var CY = 23; // Cell Height
+
+// Cell background color
+var BC_NORMAL = "#B0B0B0"; // Normal
+var BC_ACTIVE = "#C7C7B0"; // Active
+var BC_DIGGED = "#FFFFFF"; // Digged
+
+var BD_NORMAL = "#D0D0D0"; // Normal
+var BD_ACTIVE = "#0000FF"; // Active
+var BD_DIGGED = "#D0D0D0"; // Digged
+
+// Timer Interval
+var TIMER_INTERVAL = 1000;
+
+// Mouse Button
+var MB_LEFT = 1;
+var MB_RIGHT= 2;
+
+// Game Status
+var GS_END   = 0;
+var GS_RUN   = 1;
+var GS_PAUSE = 2;
+
+var g_eGameStatus = GS_END;
+
+var g_iRow = 0;
+var g_iCol = 0;
+var g_fMineRate = 0; // Percentage of mine cell
+
+var g_vMine = null; // Mine Matrix
+var g_iMine = 0;
+var g_iMineRemain = 0;
+
+var g_iTimerID   = null;
+var g_tLastFrame = null;
+var g_iTimeCost  = null; // milliseconds
+
+function OnBodyLoad()
+{
+with( document.all ){
+/*
+    window.resizeTo( 820, 620 );
+    if( window.dialogArguments == null ){
+        window.showModalDialog( document.location, "X" );
+        window.close();
+    }
+*/
+}
+}
+
+function OnClickGame()
+{
+    if( g_eGameStatus == GS_END ){
+        StartGame();
+    }
+    else{ // GS_RUN or GS_PAUSE
+        EndGame();
+    }
+}
+
+function OnClickPause()
+{
+with( document.all ){
+    if( btnPause.value == "PAUSE" ){
+        g_eGameStatus = GS_PAUSE;
+        clearInterval( g_iTimerID );
+        btnPause.value = "RESUME";
+        tblMine.style.display = "none"; // Hide mine field.
+    }
+    else{ // Resume game
+        btnPause.value = "PAUSE";
+        tblMine.style.display = "inline"; // Show mine field.
+        g_tLastFrame = new Date().getTime();
+        g_iTimerID = setInterval( OnTimer, TIMER_INTERVAL );
+        g_eGameStatus = GS_RUN;
+    }
+}
+}
+
+function StartGame()
+{
+with( document.all ){
+    Log( null );
+    Log( "¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹¨‹" );
+    Log( "Game: Initiate" );
+
+    g_iRow = parseInt( sltRow.value );
+    g_iCol = parseInt( sltCol.value );
+    g_fMineRate = parseFloat( sltMineRate.value );
+
+    sltRow.disabled = true;
+    sltCol.disabled = true;
+    sltMineRate.disabled = true;
+    btnGame.value = "END";
+    btnPause.value = "PAUSE";
+    btnPause.disabled = false;
+    tblMine.style.display = "inline";
+
+    Log( "Generate mine data. ( " + g_iRow + "x" + g_iCol + ", " + Math.round( g_fMineRate * 100 ) + "% )" );
+    var mm = Math.round( g_iRow * g_iCol * g_fMineRate ); // Max mine number
+    var mr = g_iRow + 2; // +2: Include outer border - unused cells.
+    var mc = g_iCol + 2;
+    var r, c;
+
+    g_iMine = 0;
+    g_vMine = new Array(mr);
+    for( r = 0; r < mr; ++r ){
+        g_vMine[r] = new Array(mc);
+    }
+
+    for( r = 1; r <= g_iRow; ++r ){
+        for( c = 1; c <= g_iCol; ++c ){
+            if( Math.random() < g_fMineRate ){
+                ++g_iMine;
+                g_vMine[r][c] = true;
+
+                if( g_iMine >= mm ){ // Mine number exceed.
+                    r = g_iRow;
+                    c = g_iCol;
+                }
+            }
+        }
+    }
+    while( g_iMine < mm ){
+        r = 1 + Math.round( ( g_iRow - 1 ) * Math.random() );
+        c = 1 + Math.round( ( g_iCol - 1 ) * Math.random() );
+        if( g_vMine[r][c] == null ){
+            g_vMine[r][c] = true;
+            ++g_iMine;
+        }
+    }
+
+    Log( "Render mine matrix." );
+    for( r = 0; r < g_iRow; ++r ){
+        var oRow = tbdMine.insertRow(); // TR
+        for( c = 0; c < g_iCol; ++c ){
+            var oCell = oRow.insertCell(); // TD
+            oCell.style.width  = CX;
+            oCell.style.height = CY + 1;
+            oCell.style.cursor = "hand";
+            oCell.style.textAlign = "center";
+            oCell.style.verticalAlign = "middle";
+            oCell.style.backgroundColor = BC_NORMAL;
+            oCell.attachEvent( "onmouseup", OnCellMouseUp );
+            oCell.attachEvent( "onmouseenter", OnCellMouseEnter );
+            oCell.attachEvent( "onmouseleave", OnCellMouseLeave );
+/*
+            oCell.style.width  = CX + 0;
+            oCell.style.height = CY + 1;
+            oCell.style.textAlign = "center";
+            oCell.style.verticalAlign = "middle";
+
+            var oBtn = document.createElement("INPUT"); // Cell
+            oBtn.type = "button";
+            oBtn.width = CX;
+            oBtn.style.height = CY;
+            oBtn.attachEvent( "onmouseup", OnCellMouseUp ); // Event name is case-sensitivity.
+            oCell.appendChild( oBtn );
+*/
+        }
+    }
+
+    Log( "Setup game status." );
+    g_iMineRemain = g_iMine;
+    g_iTimeCost = 0;
+    g_tLastFrame = new Date().getTime();
+    g_iTimerID = setInterval( OnTimer, TIMER_INTERVAL );
+    lblMineNum.innerText = "Mine: " + g_iMineRemain;
+    g_eGameStatus = GS_RUN;
+}
+}
+
+// End Game
+function EndGame()
+{
+with( document.all ){
+    clearInterval( g_iTimerID ); // Shutdown timer
+
+    g_eGameStatus = GS_END;
+    g_vMine = null;
+    g_iTimerID = null;
+
+    sltRow.disabled = false;
+    sltCol.disabled = false;
+    sltMineRate.disabled = false;
+
+    btnGame.value = "START";
+    btnPause.value = "PAUSE";
+    btnPause.disabled = true;
+
+    tblMine.style.display = "none";
+    lblTimeCost.innerText = "Time[00:00]";
+    lblMineNum.innerText = "Mine: 0";
+
+    var r, c;
+    for( r = 0; r < g_iRow; ++r ){
+        tbdMine.deleteRow();
+    }
+
+    Log( "Game: Shutdown" );
+    Log( "¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø¡ø" );
+    Log( "" );
+}
+}
+
+// Update GameInfo
+function OnTimer()
+{
+    var t = new Date().getTime();
+    g_iTimeCost += ( t - g_tLastFrame );
+    g_tLastFrame = t;
+
+    var seconds = Math.round( g_iTimeCost / 1000 );
+    var ss = seconds % 60;
+    var mi = ( seconds - ss ) / 60;
+    mi = mi.toString(10);
+    ss = ss.toString(10);
+    if( mi.length == 1 ) mi = "0" + mi;
+    if( ss.length == 1 ) ss = "0" + ss;
+    lblTimeCost.innerText = "Time[" + mi + ":" + ss +"]";
+    lblMineNum.innerText = "Mine: " + g_iMineRemain;
+}
+
+// Process GameAction
+function OnCellMouseUp()
+{
+    if( g_eGameStatus != GS_RUN ){
+        return;
+    }
+
+    var r = event.srcElement.parentNode.rowIndex + 1;
+    var c = event.srcElement.cellIndex + 1;
+
+    if( event.button == MB_LEFT ){ // Dig cell
+        DigCell( r, c );
+    }
+    else if( event.button == MB_RIGHT ){ // Mark cell
+        MarkCell( r, c );
+    }
+}
+
+// 
+function OnCellMouseEnter()
+{
+    if( event.srcElement.style.backgroundColor.toString().toUpperCase() != BC_DIGGED ){
+        event.srcElement.style.backgroundColor = BC_ACTIVE;
+    }
+}
+
+// 
+function OnCellMouseLeave()
+{
+    if( event.srcElement.style.backgroundColor.toString().toUpperCase() != BC_DIGGED ){
+        event.srcElement.style.backgroundColor = BC_NORMAL;
+    }
+}
+
+// Dig a cell, return true when it is a blank cell.
+function DigCell( r, c )
+{
+    if( r < 1 || r > g_iRow || c < 1 || c > g_iCol ){
+        return false;
+    }
+
+    var td = document.all.tbdMine.rows( r - 1 ).cells( c - 1 );
+    if( g_vMine[r][c] ){ // Boom!
+        td.value = "¡ñ"
+        alert( "Mission Failed!" );
+        EndGame();
+        return false;
+    }
+    if( td.style.backgroundColor.toString().toUpperCase() == BC_DIGGED ){
+        return false;
+    }
+
+    // Mark cell as digged
+    td.style.backgroundColor = BC_DIGGED;
+    var n = GetNeighbour( r, c );
+    if( n == 0 ){
+        td.innerText = " ";
+        DigNeighbour( r, c );
+    }
+    else{ // Blank cell
+        td.innerText = n;
+    }
+}
+
+// Dig BLANK cell's all neighbours recursively.
+function DigNeighbour( r, c )
+{
+    var v = new Array( new Array( r, c ) ); // Init blank cell queue.
+    while( v.length > 0 ){
+        var w = new Array(); // New blank cell queue.
+        for( var j = 0; j < v.length; ++j ){
+            r = v[j][0];
+            c = v[j][1];
+            if( DigCell( r-1, c-1 ) ) w[w.length] = new Array( r-1, c-1 );
+            if( DigCell( r-1, c   ) ) w[w.length] = new Array( r-1, c   );
+            if( DigCell( r-1, c+1 ) ) w[w.length] = new Array( r-1, c+1 );
+            if( DigCell( r  , c-1 ) ) w[w.length] = new Array( r  , c-1 );
+            if( DigCell( r  , c+1 ) ) w[w.length] = new Array( r  , c+1 );
+            if( DigCell( r+1, c-1 ) ) w[w.length] = new Array( r+1, c-1 );
+            if( DigCell( r+1, c   ) ) w[w.length] = new Array( r+1, c   );
+            if( DigCell( r+1, c+1 ) ) w[w.length] = new Array( r+1, c+1 );
+            delete v[j];
+        }
+        v = w;
+    }
+}
+
+// Mark a cell as mine.
+function MarkCell( r, c )
+{
+    var td = tbdMine.rows( r - 1 ).cells( c - 1 );
+
+    if( td.innerText == "¡ø" ){
+        td.innerText = "?";
+        ++g_iMineRemain;
+        if( g_vMine[r][c] ){
+            ++g_iMine;
+        }
+    }
+    else if( td.innerText == "?" ){
+        td.innerText = " ";
+    }
+    else{
+        td.innerText = "¡ø";
+        --g_iMineRemain;
+        if( g_vMine[r][c] ){
+            --g_iMine;
+        }
+        if( g_iMine <= 0 ){
+            alert( "Congratulations! Mission accomplished." );
+            EndGame();
+        }
+    }
+}
+
+// Get mine neighbour count
+function GetNeighbour( r, c )
+{
+    var i = 0;
+    if( g_vMine[r-1][c-1] ) ++i;
+    if( g_vMine[r-1][c  ] ) ++i;
+    if( g_vMine[r-1][c+1] ) ++i;
+    if( g_vMine[r  ][c-1] ) ++i;
+    if( g_vMine[r  ][c+1] ) ++i;
+    if( g_vMine[r+1][c-1] ) ++i;
+    if( g_vMine[r+1][c  ] ) ++i;
+    if( g_vMine[r+1][c+1] ) ++i;
+    return i;
+}
+
+// Write log
+function Log( sLog )
+{
+    var oFS = new ActiveXObject( "Scripting.FileSystemObject" );
+
+    if( sLog == null ){ // Clear Log
+        return;
+    }
+
+    var ForAppending = 8;
+    var oFile = oFS.OpenTextFile( "MineSweeper.txt", ForAppending, true );
+
+    var oDate = new Date();
+    sLog = "[" + oDate.getHours() + ":" + oDate.getMinutes() + ":" + oDate.getSeconds() + ":" + oDate.getMilliseconds() + "] " + sLog;
+    oFile.writeLine( sLog );
+    oFile.Close();
+}
+
+</script>
+<body OnLoad="OnBodyLoad();" OnContextMenu="return false;" style="font-family: SimSun; font-size: 10pt;">
+<form id="fmMain">
+
+<table id="tblBorder" width="800" height="600" border="1" cellPadding="0" cellSpacing="0" borderColor="#7070FFF">
+<tbody>
+<tr height="40">
+    <td align="center">
+        <span style="height: 22px;">Row: </span>
+        <select id="sltRow">
+        <option value="5" >5
+        <option value="10">10
+        <option value="15">15
+        <option value="20">20
+        </select>
+
+        <span style="height: 22px;">Col: </span>
+        <select id="sltCol">
+        <option value="5" >5
+        <option value="10">10
+        <option value="15">15
+        <option value="20">20
+        <option value="25">25
+        <option value="30">30
+        </select>
+
+        <span style="height: 22px;">Mine: </span>
+        <select id="sltMineRate">
+        <option value="0.1">10%
+        <option value="0.2">20%
+        <option value="0.3">30%
+        <option value="0.4">40%
+        <option value="0.5">50%
+        <option value="0.6">60%
+        <option value="0.7">70%
+        <option value="0.8">80%
+        <option value="0.9">90%
+        </select>
+
+        <input type="button" id="btnGame"  value="START" OnClick="OnClickGame()"  style="font-family: SimSun; font-size: 10pt; width: 70; height: 25;" >
+        <input type="button" id="btnPause" value="PAUSE" OnClick="OnClickPause()" style="font-family: SimSun; font-size: 10pt; width: 70; height: 25;" disabled>
+
+        <span style="height: 22px;" id="lblTimeCost">Time[00:00]</span>
+        <span style="height: 22px;" id="lblMineNum">Mine: 0</span>
+    </td>
+</tr>
+<tr valign="middle">
+    <td align="center">
+        <table border="0"><tr><td>
+        <table id="tblMine" border="1" cellPadding="0" cellSpacing="0" borderColor="#D0D0D0" style="border-collapse: collapse;">
+        <tbody id="tbdMine">
+        </tbody>
+        </table>
+        </td></tr></table>
+    </td>
+</tr>
+</tbody>
+</table>
+
+</form>
+</body>
+</html>
